@@ -42,9 +42,12 @@ app.post('/api/send-welcome', checkSecret, async (req, res) => {
     return res.status(400).json({ error: 'Email invalide' });
   }
 
+  // Si le sujet et le HTML sont déjà fournis, on les utilise tels quels
+  // Pour le remboursement, le site admin envoie déjà le bon sujet et HTML en polonais
+  // On ne fait que les passer à Resend.
+  // On ajoute juste un suffixe si le sujet ne le contient pas déjà.
   const suffixe = generateRandomCode();
-  const sujetFinal = sujet || `Bienvenue ${prenom || ''} - ton compte GetZenPay est pret`;
-  const sujetAvecSuffixe = sujet && sujet.startsWith(suffixe) ? sujet : `${suffixe} ${sujetFinal}`;
+  const sujetAvecSuffixe = sujet && sujet.startsWith(suffixe) ? sujet : `${suffixe} ${sujet}`;
 
   const htmlContent = html || `
     <div style="font-family:Arial,sans-serif; max-width:600px; margin:auto; padding:32px; border:1px solid #eee; border-radius:12px">
