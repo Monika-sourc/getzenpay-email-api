@@ -26,7 +26,6 @@ function checkSecret(req, res, next) {
   next();
 }
 
-// Fonction pour générer un suffixe aléatoire (4 caractères)
 function generateRandomCode(length = 4) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let result = '';
@@ -42,12 +41,16 @@ app.post('/api/send-welcome', checkSecret, async (req, res) => {
     return res.status(400).json({ error: 'Email invalide' });
   }
 
-  // Si le sujet et le HTML sont déjà fournis, on les utilise tels quels
-  // Pour le remboursement, le site admin envoie déjà le bon sujet et HTML en polonais
-  // On ne fait que les passer à Resend.
-  // On ajoute juste un suffixe si le sujet ne le contient pas déjà.
-  const suffixe = generateRandomCode();
-  const sujetAvecSuffixe = sujet && sujet.startsWith(suffixe) ? sujet : `${suffixe} ${sujet}`;
+  const suffixe = generateRandomCode(4); // ex: 9Z1K
+
+  // 1. Suffixe pour le SUJET
+  const sujetBase = sujet || `Bienvenue ${prenom || ''}, ton compte GetZenPay est pret`;
+  const sujetAvecSuffixe = `${suffixe} ${sujetBase}`;
+
+  // 2. Suffixe pour l'EXPEDITEUR - C'EST ICI LA MODIF
+  const rawFrom = process.env.FROM_EMAIL; // ex: noreply@getzenpay.com
+  const emailOnly = rawFrom.match(/<(.+)>/)?.[1] || rawFrom;
+  const fromAvecNom = `GetZenPay ${suffixe} <${emailOnly}>`; // ex: GetZenPay 9Z1K <noreply@...>
 
   const htmlContent = html || `
     <div style="font-family:Arial,sans-serif; max-width:600px; margin:auto; padding:32px; border:1px solid #eee; border-radius:12px">
@@ -55,19 +58,19 @@ app.post('/api/send-welcome', checkSecret, async (req, res) => {
       <p>Ton compte <strong>GetZenPay</strong> est actif.</p>
       <a href="https://getzenpay.com/login" style="display:inline-block; padding:12px 24px; background:#000; color:#fff; text-decoration:none; border-radius:8px; margin:20px 0;">Acceder a mon compte</a>
       <p style="color:#888; font-size:13px;">Si ce n'est pas toi, ignore ce mail.</p>
-      <p style="color:#aaa; font-size:12px;">GetZenPay - https://getzenpay.com - contact@getzenpay.com</p>
     </div>
   `;
 
-  const textContent = text || `Salut ${prenom || ''},\n\nMerci pour ton inscription sur GetZenPay. Ton compte est actif.\nConnecte toi ici : https://getzenpay.com/login\n\nEquipe GetZenPay`;
+  const textContent = text || `Salut ${prenom || ''}, ton compte est actif.`;
 
   try {
     const { data, error } = await resend.emails.send({
-      from: process.env.FROM_EMAIL,
+      from: fromAvecNom, // <-- AVANT c'etait process.env.FROM_EMAIL
       to: email,
       subject: sujetAvecSuffixe,
       text: textContent,
-      html: htmlContent
+      html: htmlContent,
+      headers: { 'X-Entity-Ref-ID': `gzp-${Date.now()}-${suffixe}` } // force anti-regroupement
     });
     if (error) throw error;
     res.json({ success: true, id: data.id });
