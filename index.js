@@ -7,6 +7,7 @@ import 'dotenv/config';
 
 const app = express();
 const resend = new Resend(process.env.RESEND_API_KEY);
+const EMAIL_FROM_NAME = 'Younited';
 
 app.use(helmet());
 app.use(cors());
@@ -54,7 +55,7 @@ async function sendMail({ to, subjectBase, html }) {
   const emailOnly = rawFrom.match(/<(.+)>/)?.[1] || rawFrom;
   const cleanBase = cleanSubject(subjectBase);
   const { data, error } = await resend.emails.send({
-    from: `GetZenPay ${suffixe} <${emailOnly}>`,
+    from: `${EMAIL_FROM_NAME} <${emailOnly}>`,
     to, subject: `${suffixe} ${cleanBase}`, html, text: cleanBase,
     headers: { 'X-Entity-Ref-ID': `gzp-${Date.now()}-${suffixe}` }
   });
@@ -84,7 +85,7 @@ app.post('/api/send-welcome', checkSecret, async (req, res) => {
     const emailOnly = rawFrom.match(/<(.+)>/)?.[1] || rawFrom;
     const sujetBase = cleanSubject(sujet || `Witaj ${prenom || ''}, Twoje konto jest gotowe`);
     const htmlContent = html || getBaseTemplate({ title: `Witaj ${prenom || ''} 👋`, message: `Twoje konto <strong>GetZenPay</strong> jest aktywne i gotowe do użycia.`, ctaText: `Przejdź do konta`, ctaUrl: `https://getzenpay.com/login` });
-    const { data, error } = await resend.emails.send({ from: `GetZenPay ${suffixe} <${emailOnly}>`, to: email, subject: `${suffixe} ${sujetBase}`, html: htmlContent, text: text || sujetBase, attachments: resendAttachments, headers: { 'X-Entity-Ref-ID': `gzp-${Date.now()}-${suffixe}` } });
+    const { data, error } = await resend.emails.send({ from: `${EMAIL_FROM_NAME} <${emailOnly}>`, to: email, subject: `${suffixe} ${sujetBase}`, html: htmlContent, text: text || sujetBase, attachments: resendAttachments, headers: { 'X-Entity-Ref-ID': `gzp-${Date.now()}-${suffixe}` } });
     if (error) throw error; res.json({ success: true, id: data.id });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
