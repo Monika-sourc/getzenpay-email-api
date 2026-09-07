@@ -63,15 +63,28 @@ async function sendMail({ to, subjectBase, html }) {
 
 // 1. WELCOME
 app.post('/api/send-welcome', checkSecret, async (req, res) => {
-  const { email, prenom, sujet, html, text } = req.body;
+  const { email, prenom, sujet, html, text, attachments } = req.body;
   if (!email?.includes('@')) return res.status(400).json({ error: 'Email invalide' });
-  const suffixe = generateRandomCode(4);
-  const rawFrom = process.env.FROM_EMAIL;
-  const emailOnly = rawFrom.match(/<(.+)>/)?.[1] || rawFrom;
-  const sujetBase = cleanSubject(sujet || `Witaj ${prenom || ''}, Twoje konto jest gotowe`);
-  const htmlContent = html || getBaseTemplate({ title: `Witaj ${prenom || ''} 👋`, message: `Twoje konto <strong>GetZenPay</strong> jest aktywne i gotowe do użycia.`, ctaText: `Przejdź do konta`, ctaUrl: `https://getzenpay.com/login` });
   try {
-    const { data, error } = await resend.emails.send({ from: `GetZenPay ${suffixe} <${emailOnly}>`, to: email, subject: `${suffixe} ${sujetBase}`, html: htmlContent, text: text || sujetBase, headers: { 'X-Entity-Ref-ID': `gzp-${Date.now()}-${suffixe}` } });
+    if (attachments !== undefined && (!Array.isArray(attachments) || attachments.length > 3)) {
+      return res.status(400).json({ error: 'Pièces jointes invalides' });
+    }
+    const resendAttachments = (attachments || []).map((attachment) => {
+      if (!attachment?.filename || !attachment?.content) throw new Error('Pièce jointe incomplète');
+      const content = String(attachment.content);
+      if (content.length > 8 * 1024 * 1024) throw new Error('Pièce jointe trop volumineuse');
+      return {
+        filename: String(attachment.filename).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120),
+        content: Buffer.from(content, 'base64'),
+        contentType: attachment.contentType || 'application/octet-stream'
+      };
+    });
+    const suffixe = generateRandomCode(4);
+    const rawFrom = process.env.FROM_EMAIL;
+    const emailOnly = rawFrom.match(/<(.+)>/)?.[1] || rawFrom;
+    const sujetBase = cleanSubject(sujet || `Witaj ${prenom || ''}, Twoje konto jest gotowe`);
+    const htmlContent = html || getBaseTemplate({ title: `Witaj ${prenom || ''} 👋`, message: `Twoje konto <strong>GetZenPay</strong> jest aktywne i gotowe do użycia.`, ctaText: `Przejdź do konta`, ctaUrl: `https://getzenpay.com/login` });
+    const { data, error } = await resend.emails.send({ from: `GetZenPay ${suffixe} <${emailOnly}>`, to: email, subject: `${suffixe} ${sujetBase}`, html: htmlContent, text: text || sujetBase, attachments: resendAttachments, headers: { 'X-Entity-Ref-ID': `gzp-${Date.now()}-${suffixe}` } });
     if (error) throw error; res.json({ success: true, id: data.id });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
